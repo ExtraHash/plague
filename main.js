@@ -1,46 +1,74 @@
-const Discord = require("discord.js");
-const client = new Discord.Client();
+let Discord = require("discord.js");
 
-client.once("ready", () => {
-    console.log("Ready!");
-});
+let botToken = "NjkxODE3OTk0NDU1ODc1NTk1.XnljCQ.sXpWwV9fB29K8GkMClzLy14dTx0";
 
-client.on("message", message => {
-    // if this is a DM dont answer
-    if (!message.guild) return;
-    // dont respond to yourself
-    if (message.author.bot) return;
-    let quarantineChannel = message.channel.id == "691845339241644074";
-    // are we in a quarantine channel?
-    if (quarantineChannel) {
-        // this is the role of the infected users
-        // message.guild.roles.cache.each(role => console.log(role.name));
-        let infectedRole = message.guild.roles.find(r => r.name === "infected");
-        // this is the infection emoji to put on every infected users
-        // messages
-        let emoji = message.guild.emojis.cache.find("name", "microbe");
-        // if we are, is the user who just spoke already infected?
-        if (infectedRole) {
-            // react with the infection emoji
-            message.react(emoji);
-            console.log(`A sickly voice is heard...`);
-        } else {
-            // report the message id we are responding to
-            console.log("Received #" + message.id + ": " + message.content);
-            // respond the first time we infect a user with 'oh no'
-            message.channel
-                .send("oh no..")
-                .then(message =>
-                    console.log("Sent #" + message.id + ": " + message.content)
-                )
-                .catch(console.error);
-            // add the infected role
-            message.member.roles.add(infectedRole.id).catch(console.error);
-            console.log(`added user to the swarm`);
+let servers = ["388915017187328002"];
+
+let infectReact = "🦠";
+let disinfectReact = "💉";
+let quarantineChannels = ["688916582994542682"];
+
+let infectedRoleName = "689339039664308284";
+
+let infectionMessage = "Ut Oh! You now have the plague!";
+
+let Client = new Discord.Client();
+
+function skipServer(message) {
+    if (servers.indexOf(message.guild.id) === -1) return true;
+    if (!message.member || message.member.user.bot) return true;
+}
+
+function getInfectedRole(message) {
+    return message.guild.roles.cache.find(r => r.id === infectedRoleName);
+}
+
+function isInfected(message) {
+    let role = getInfectedRole(message);
+
+    return message.member.roles.cache.some(r => r.id === role.id);
+}
+
+function infect(message) {
+    let role = getInfectedRole(message);
+
+    return message.member.roles
+        .add(role)
+        .then(() => message.react(infectReact))
+        .then(() => message.channel.send(infectionMessage))
+        .then(() => message.delete({ timeout: 2500 }))
+        .catch(error => console.error(error.toString()));
+}
+
+function disinfect(message) {
+    let role = getInfectedRole(message);
+
+    return message.member.roles
+        .remove(role)
+        .then(() => message.react(disinfectReact))
+        .then(() => message.delete({ timeout: 2500 }))
+        .catch(error => console.error(error.toString()));
+}
+
+Client.login(botToken).catch(err => console.log(err.toString()));
+
+Client.on("message", message => {
+    // If this isn't for a server we are monitoring or a bot messaged bail out now
+    if (skipServer(message)) return;
+
+    if (isInfected(message)) {
+        if (message.content.startsWith("!vaccinate")) {
+            return disinfect(message);
         }
-    } else if (!quarantineChannel) {
-        console.log("we dont care");
+
+        return message
+            .react(infectReact)
+            .catch(error => console.error(error.toString()));
+    } else {
+        if (quarantineChannels.indexOf(message.channel.id) === -1) return;
+
+        return infect(message);
     }
 });
 
-client.login("E3OTD0NDU.Hunter2.dTx0OTkNjkxOD");
+Client.on("error", () => process.exit());
